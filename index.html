@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>통합 광고 보고서</title>
+    <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css" />
+    <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        body { font-family: sans-serif; padding: 20px; line-height: 1.6; background: #f4f7f6; }
+        .container { max-width: 1000px; margin: auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h2 { color: #333; }
+        input { margin: 20px 0; }
+        #output_table { margin-top: 20px; overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #007bff; color: white; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>📊 통합 광고 보고서 (GitHub 전용)</h2>
+        <p>네이버, 구글 등 엑셀/CSV 파일을 선택하세요. 브라우저 내에서 직접 합쳐집니다.</p>
+        
+        <input type="file" id="file-upload" multiple>
+        
+        <div id="graph-area"></div>
+        <div id="output_table"></div>
+    </div>
+
+    <section class="pyscript">
+        <script type="py" config='{"packages":["pandas", "openpyxl"]}'>
+            import pandas as pd
+            from pyodide.http import open_url
+            from pyodide.ffi import create_proxy
+            from js import document, Plotly, JSON
+            import json
+
+            async def process_files(event):
+                files = event.target.files
+                all_df = []
+                
+                for file in files:
+                    # 파일 읽기 로직 (간소화)
+                    data = await file.arrayBuffer()
+                    df = pd.read_excel(data.to_py()) if file.name.endswith('xlsx') else pd.read_csv(data.to_py())
+                    df['매체'] = file.name.split('.')[0]
+                    all_df.append(df)
+                
+                if all_df:
+                    combined = pd.concat(all_df, ignore_index=True)
+                    
+                    # 1. 테이블 출력
+                    document.getElementById("output_table").innerHTML = combined.to_html()
+                    
+                    # 2. 간단한 그래프 (매체별 데이터 개수 예시)
+                    counts = combined['매체'].value_counts()
+                    graph_data = [{
+                        "x": list(counts.index),
+                        "y": list(counts.values),
+                        "type": "bar"
+                    }]
+                    layout = {"title": "매체별 데이터 비중"}
+                    Plotly.newPlot("graph-area", JSON.parse(json.dumps(graph_data)), JSON.parse(json.dumps(layout)))
+
+            file_upload = document.getElementById("file-upload")
+            file_upload.addEventListener("change", create_proxy(process_files))
+        </script>
+    </section>
+</body>
+</html>
